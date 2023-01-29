@@ -2,6 +2,7 @@
 
 A QEMU-based virtual machine manager.
 Written mostly because remembering/typing QEMU commands is hard.
+Does not have graphical support.
 
 ## Installation
 
@@ -9,8 +10,7 @@ Requires [Rust/Cargo](https://www.rust-lang.org/tools/install).
 
 ```bash
 git clone https://github.com/euugenechou/rhea.git
-cd rhea
-cargo install --path .
+cargo install --path ./rhea
 ```
 
 ## Settings
@@ -23,8 +23,8 @@ to the UEFI blob to use. On an M1 Mac, assuming QEMU is installed using
 export RHEA_UEFI_PATH="$(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd"
 ```
 
-If you're on an Intel-based Mac, simply use UEFI blob designated for x86-64. If
-not on a Mac, the blobs will (probably) require some digging to locate.
+If you're on an Intel-based Mac, simply use the UEFI blob designated for x86-64.
+If not on a Mac, the blobs will (probably) require some digging to locate.
 
 ## Usage
 
