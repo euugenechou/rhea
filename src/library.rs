@@ -57,7 +57,9 @@ impl Library {
     }
 
     fn disk_path(&self, disk: &Disk) -> Result<PathBuf> {
-        Ok(path![self.disk_dir_path()? / disk.name])
+        Ok(path![
+            self.disk_dir_path()? / format!("{}.qcow2", disk.name)
+        ])
     }
 
     fn disk_lock_dir_path(&self) -> Result<PathBuf> {
@@ -75,7 +77,9 @@ impl Library {
     }
 
     fn disk_backup_path(&self, disk: &Disk) -> Result<PathBuf> {
-        Ok(path![self.disk_backup_dir_path()? / disk.name])
+        Ok(path![
+            self.disk_backup_dir_path()? / format!("{}.qcow2", disk.name)
+        ])
     }
 
     fn machine_dir_path(&self) -> Result<PathBuf> {
@@ -83,7 +87,9 @@ impl Library {
     }
 
     fn machine_path(&self, machine: &Machine) -> Result<PathBuf> {
-        Ok(path![self.machine_dir_path()? / machine.name])
+        Ok(path![
+            self.machine_dir_path()? / format!("{}.qcow2", machine.name)
+        ])
     }
 
     fn machine_lock_dir_path(&self) -> Result<PathBuf> {
@@ -101,7 +107,9 @@ impl Library {
     }
 
     fn machine_backup_path(&self, machine: &Machine) -> Result<PathBuf> {
-        Ok(path![self.machine_backup_dir_path()? / machine.name])
+        Ok(path![
+            self.machine_backup_dir_path()? / format!("{}.qcow2", machine.name)
+        ])
     }
 
     fn setup(&self) -> Result<()> {
@@ -154,7 +162,7 @@ impl Library {
         let mut cmd = Command::new(QEMU_IMAGER);
         cmd.arg("create");
         cmd.args(["-f", "qcow2"]);
-        cmd.arg(&format!("{name}.qcow2"));
+        cmd.arg(&format!("{name}"));
         cmd.arg(&format!("{size}G"));
 
         let mut child = cmd.spawn()?;
@@ -183,8 +191,8 @@ impl Library {
         cmd.args([
             "-drive",
             &format!(
-                "file={}.qcow2,if=none,cache=writethrough,id=hd0",
-                path![self.machine_dir_path()? / machine.name]
+                "file={},if=none,cache=writethrough,id=hd0",
+                self.machine_path(&machine)?
                     .to_str()
                     .ok_or(Error::BadPath)?
             ),
@@ -276,10 +284,16 @@ impl Library {
                 .disks
                 .get(disk)
                 .ok_or(Error::InvalidDisk { name: disk.clone() })?;
+            let disk_path = self.disk_path(&disk)?;
+
             cmd.args([
                 "-drive",
-                &format!("file={},format=qcow2,media=disk", disk.name),
+                &format!(
+                    "file={},format=qcow2,media=disk",
+                    disk_path.to_str().ok_or(Error::BadPath)?
+                ),
             ]);
+
             let disk_lock = self.lock_disk(disk)?;
             disk_locks.push(disk_lock);
         }
