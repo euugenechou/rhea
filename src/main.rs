@@ -107,6 +107,20 @@ enum Subcommands {
     VmBackups,
     /// List ports used by virtual machines
     Ports,
+    /// Connect to a running virtual machine
+    Connect {
+        /// Forward SSH keys
+        #[arg(short = 'A', long, default_value_t = false)]
+        forward_keys: bool,
+
+        /// Username (default: $USER)
+        #[arg(short, long)]
+        username: Option<String>,
+
+        /// Name of the virtual machine
+        #[arg(value_parser)]
+        name: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -187,6 +201,13 @@ fn main() -> Result<()> {
             for port in state.ports() {
                 println!("{port}");
             }
+        }
+        Subcommands::Connect {
+            forward_keys,
+            username,
+            name,
+        } => {
+            state.connect(name, username, forward_keys)?;
         }
     };
 

@@ -164,10 +164,7 @@ impl Library {
         cmd.args(["-f", "qcow2"]);
         cmd.arg(&format!("{name}"));
         cmd.arg(&format!("{size}G"));
-
-        let mut child = cmd.spawn()?;
-        child.wait()?;
-
+        cmd.spawn()?.wait()?;
         Ok(())
     }
 
@@ -302,8 +299,7 @@ impl Library {
             cmd.args(["-cdrom", iso.to_str().ok_or(Error::BadPath)?]);
         }
 
-        let mut child = cmd.spawn()?;
-        child.wait()?;
+        cmd.spawn()?.wait()?;
 
         machine_lock.unlock()?;
 
@@ -354,5 +350,33 @@ impl Library {
 
     pub fn ports(&self) -> impl Iterator<Item = u16> + '_ {
         self.machines.values().map(|machine| machine.port)
+    }
+
+    pub fn connect(
+        &self,
+        name: String,
+        username: Option<String>,
+        forward_keys: bool,
+    ) -> Result<()> {
+        let mut cmd = Command::new("ssh");
+
+        if forward_keys {
+            cmd.arg("-A");
+        }
+
+        cmd.arg(&format!("-p {}", self.get_machine_port(name)?));
+
+        cmd.arg(&format!(
+            "{}@localhost",
+            if let Some(username) = username {
+                username
+            } else {
+                env::var("USER")?
+            }
+        ));
+
+        cmd.spawn()?.wait()?;
+
+        Ok(())
     }
 }
