@@ -1,6 +1,7 @@
 use crate::{Disk, Error, Machine, Result};
 use fslock::LockFile;
 use path_macro::path;
+use piper::PipedCommand;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::Values, HashMap},
@@ -8,7 +9,8 @@ use std::{
     fmt::Display,
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
+    str,
 };
 
 #[cfg(target_arch = "x86-64")]
@@ -224,7 +226,9 @@ impl Library {
         if lock.try_lock()? {
             Ok(lock)
         } else {
-            Err(Error::InUse)
+            Err(Error::InUse {
+                name: disk.name.clone(),
+            })
         }
     }
 
@@ -248,7 +252,9 @@ impl Library {
         if lock.try_lock()? {
             Ok(lock)
         } else {
-            Err(Error::InUse)
+            Err(Error::InUse {
+                name: machine.name.clone(),
+            })
         }
     }
 
@@ -266,6 +272,7 @@ impl Library {
         name: String,
         cores: usize,
         ram: usize,
+        foreground: bool,
         disks: &[String],
         iso: Option<PathBuf>,
     ) -> Result<()> {
@@ -299,7 +306,15 @@ impl Library {
             cmd.args(["-cdrom", iso.to_str().ok_or(Error::BadPath)?]);
         }
 
-        cmd.spawn()?.wait()?;
+        if !foreground {
+            cmd.stdout(Stdio::null());
+        }
+
+        let mut child = cmd.spawn()?;
+
+        if foreground {
+            child.wait()?;
+        }
 
         machine_lock.unlock()?;
 
@@ -377,6 +392,26 @@ impl Library {
 
         cmd.spawn()?.wait()?;
 
+        Ok(())
+    }
+
+    pub fn stop(&self, name: String) -> Result<()> {
+        let machine = self.get_machine(&name)?;
+        let path = self.machine_path(&machine)?;
+        let output = PipedCommand::run(format!(
+            "ps aux | grep -v grep | grep {}",
+            path.to_str().ok_or(Error::BadPath)?
+        ))?;
+        let pid = str::from_utf8(&output.stdout)
+            .map_err(|_| Error::NotInUse { name: name.clone() })?
+            .lines()
+            .next()
+            .ok_or(Error::NotInUse { name })?
+            .split_whitespace()
+            .skip(1)
+            .next()
+            .unwrap();
+        Command::new("kill").arg(&pid).spawn()?.wait()?;
         Ok(())
     }
 }

@@ -87,8 +87,12 @@ enum Subcommands {
         #[arg(short, long, value_parser, default_value_t = 4)]
         ram: usize,
 
+        /// Run virtual machine in foreground.
+        #[arg(short, long, default_value_t = false)]
+        foreground: bool,
+
         /// Names of disks to attach to the virtual machine
-        #[arg(short, long)]
+        #[arg(short, long, value_delimiter = ',')]
         disks: Vec<String>,
     },
     /// Print the port assigned to a virtual machine
@@ -117,6 +121,12 @@ enum Subcommands {
         #[arg(short, long)]
         username: Option<String>,
 
+        /// Name of the virtual machine
+        #[arg(value_parser)]
+        name: String,
+    },
+    /// Stop a running virtual machine
+    Stop {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
@@ -156,7 +166,7 @@ fn main() -> Result<()> {
                 size,
             })?;
             state.save()?;
-            state.run_machine(name, cores, ram, &[], Some(iso))?;
+            state.run_machine(name, cores, ram, false, &[], Some(iso))?;
         }
         Subcommands::RmVm { name } => {
             state.remove_machine(&name)?;
@@ -170,9 +180,10 @@ fn main() -> Result<()> {
             name,
             cores,
             ram,
+            foreground,
             disks,
         } => {
-            state.run_machine(name, cores, ram, &disks, None)?;
+            state.run_machine(name, cores, ram, foreground, &disks, None)?;
         }
         Subcommands::Port { name } => {
             println!("{}", state.get_machine_port(name)?);
@@ -208,6 +219,9 @@ fn main() -> Result<()> {
             name,
         } => {
             state.connect(name, username, forward_keys)?;
+        }
+        Subcommands::Stop { name } => {
+            state.stop(name)?;
         }
     };
 

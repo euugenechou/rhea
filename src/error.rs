@@ -10,8 +10,11 @@ pub enum Error {
     #[error("bad path")]
     BadPath,
 
-    #[error("machine already in-use")]
-    InUse,
+    #[error("machine already running: {name}")]
+    InUse { name: String },
+
+    #[error("machine not running: {name}")]
+    NotInUse { name: String },
 
     #[error("invalid disk: {name}")]
     InvalidDisk { name: String },
