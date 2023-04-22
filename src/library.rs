@@ -28,12 +28,9 @@ const QEMU_RUNNER: &str = "qemu-system-aarch64";
 const QEMU_IMAGER: &str = "qemu-img";
 const UEFI_ENV_VAR: &str = "RHEA_UEFI_PATH";
 const STATE_PATH: &str = "state.toml";
+const PROCESS_LOCK_PATH: &str = ".proc.lock";
 const DISK_DIR_PATH: &str = "disks";
-const DISK_LOCK_DIR_PATH: &str = "disk-locks";
 const MACHINE_DIR_PATH: &str = "machines";
-const MACHINE_LOCK_DIR_PATH: &str = "machine-locks";
-const DISK_BACKUP_DIR_PATH: &str = "disk-backups";
-const MACHINE_BACKUP_DIR_PATH: &str = "machine-backups";
 
 #[derive(Deserialize, Serialize)]
 pub struct Library {
@@ -50,78 +47,34 @@ impl Library {
         Ok(PathBuf::from(env::var(UEFI_ENV_VAR)?))
     }
 
-    fn state_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / STATE_PATH])
+    fn state_path(&self) -> PathBuf {
+        path![self.path / STATE_PATH]
     }
 
-    fn disk_dir_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / DISK_DIR_PATH])
+    fn process_lock_path(&self) -> PathBuf {
+        path![self.path / PROCESS_LOCK_PATH]
     }
 
-    fn disk_path(&self, disk: &Disk) -> Result<PathBuf> {
-        Ok(path![
-            self.disk_dir_path()? / format!("{}.qcow2", disk.name)
-        ])
+    fn disk_dir_path(&self) -> PathBuf {
+        path![self.path / DISK_DIR_PATH]
     }
 
-    fn disk_lock_dir_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / DISK_LOCK_DIR_PATH])
+    fn disk_path(&self, name: &str) -> PathBuf {
+        path![self.disk_dir_path() / format!("{}.qcow2", name)]
     }
 
-    fn disk_lock_path(&self, disk: &Disk) -> Result<PathBuf> {
-        Ok(path![
-            self.disk_lock_dir_path()? / format!("{}.lock", disk.name)
-        ])
+    fn machine_dir_path(&self) -> PathBuf {
+        path![self.path / MACHINE_DIR_PATH]
     }
 
-    fn disk_backup_dir_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / DISK_BACKUP_DIR_PATH])
-    }
-
-    fn disk_backup_path(&self, disk: &Disk) -> Result<PathBuf> {
-        Ok(path![
-            self.disk_backup_dir_path()? / format!("{}.qcow2", disk.name)
-        ])
-    }
-
-    fn machine_dir_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / MACHINE_DIR_PATH])
-    }
-
-    fn machine_path(&self, machine: &Machine) -> Result<PathBuf> {
-        Ok(path![
-            self.machine_dir_path()? / format!("{}.qcow2", machine.name)
-        ])
-    }
-
-    fn machine_lock_dir_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / MACHINE_LOCK_DIR_PATH])
-    }
-
-    fn machine_lock_path(&self, machine: &Machine) -> Result<PathBuf> {
-        Ok(path![
-            self.machine_lock_dir_path()? / format!("{}.lock", machine.name)
-        ])
-    }
-
-    fn machine_backup_dir_path(&self) -> Result<PathBuf> {
-        Ok(path![self.path / MACHINE_BACKUP_DIR_PATH])
-    }
-
-    fn machine_backup_path(&self, machine: &Machine) -> Result<PathBuf> {
-        Ok(path![
-            self.machine_backup_dir_path()? / format!("{}.qcow2", machine.name)
-        ])
+    fn machine_path(&self, name: &str) -> PathBuf {
+        path![self.machine_dir_path() / format!("{}.qcow2", name)]
     }
 
     fn setup(&self) -> Result<()> {
         fs::create_dir_all(&self.path)?;
-        fs::create_dir_all(self.disk_dir_path()?)?;
-        fs::create_dir_all(self.disk_lock_dir_path()?)?;
-        fs::create_dir_all(self.disk_backup_dir_path()?)?;
-        fs::create_dir_all(self.machine_dir_path()?)?;
-        fs::create_dir_all(self.machine_lock_dir_path()?)?;
-        fs::create_dir_all(self.machine_backup_dir_path()?)?;
+        fs::create_dir_all(self.disk_dir_path())?;
+        fs::create_dir_all(self.machine_dir_path())?;
         Ok(())
     }
 
@@ -145,15 +98,15 @@ impl Library {
         P: AsRef<Path> + Into<PathBuf> + Clone,
     {
         let mut state = Library::new(path.clone())?;
-        if fs::metadata(&state.state_path()?).is_ok() {
-            state = toml::from_str(&fs::read_to_string(state.state_path()?)?)?;
+        if fs::metadata(&state.state_path()).is_ok() {
+            state = toml::from_str(&fs::read_to_string(state.state_path())?)?;
             state.path = path.into();
         }
         Ok(state)
     }
 
     pub fn save(&self) -> Result<()> {
-        fs::write(self.state_path()?, toml::to_string(self)?)?;
+        fs::write(self.state_path(), toml::to_string(self)?)?;
         Ok(())
     }
 
@@ -161,57 +114,112 @@ impl Library {
     where
         P: AsRef<Path> + Display,
     {
-        let mut cmd = Command::new(QEMU_IMAGER);
-        cmd.arg("create");
-        cmd.args(["-f", "qcow2"]);
-        cmd.arg(&format!("{name}"));
-        cmd.arg(&format!("{size}G"));
-        cmd.spawn()?.wait()?;
+        Command::new(QEMU_IMAGER)
+            .arg("create")
+            .args(["-f", "qcow2"])
+            .arg(&format!("{name}"))
+            .arg(&format!("{size}G"))
+            .spawn()?
+            .wait()?;
         Ok(())
-    }
-
-    pub fn add_disk(&mut self, disk: Disk) -> Result<()> {
-        self.disks.insert(disk.name.clone(), disk.clone());
-
-        self.allocate_qcow2(
-            self.disk_path(&disk)?.to_str().ok_or(Error::BadPath)?,
-            disk.size,
-        )
     }
 
     fn base_qemu_command(&self, machine: &Machine, cores: usize, ram: usize) -> Result<Command> {
         let mut cmd = Command::new(QEMU_RUNNER);
-        cmd.args(["-M", "virt,highmem=on"]);
-        cmd.args(["-accel", "hvf"]);
-        cmd.args(["-cpu", "host"]);
-        cmd.args(["-smp", &format!("{}", cores)]);
-        cmd.args(["-m", &format!("{}G", ram)]);
-        cmd.args(["-bios", self.uefi_path()?.to_str().ok_or(Error::BadPath)?]);
-        cmd.args([
-            "-drive",
-            &format!(
-                "file={},if=none,cache=writethrough,id=hd0",
-                self.machine_path(&machine)?
-                    .to_str()
-                    .ok_or(Error::BadPath)?
-            ),
-        ]);
-        cmd.args(["-device", "virtio-gpu-pci"]);
-        cmd.args(["-device", "virtio-blk-device,drive=hd0"]);
-        cmd.args(["-net", &format!("user,hostfwd=tcp::{}-:22", machine.port)]);
-        cmd.args(["-net", "nic"]);
-        cmd.arg("-nographic");
+        cmd.args(["-M", "virt,highmem=on"])
+            .args(["-accel", "hvf"])
+            .args(["-cpu", "host"])
+            .args(["-smp", &format!("{}", cores)])
+            .args(["-m", &format!("{}G", ram)])
+            .args([
+                "-bios",
+                self.uefi_path()?.to_str().ok_or(Error::InvalidPath {
+                    path: self.uefi_path()?,
+                })?,
+            ])
+            .args([
+                "-drive",
+                &format!(
+                    "file={},if=none,cache=writethrough,id=hd0",
+                    self.machine_path(&machine.name)
+                        .to_str()
+                        .ok_or(Error::InvalidPath {
+                            path: self.machine_path(&machine.name)
+                        })?
+                ),
+            ])
+            .args(["-device", "virtio-gpu-pci"])
+            .args(["-device", "virtio-blk-device,drive=hd0"])
+            .args(["-net", &format!("user,hostfwd=tcp::{}-:22", machine.port)])
+            .args(["-net", "nic"])
+            .arg("-nographic");
         Ok(cmd)
     }
 
-    pub fn add_machine(&mut self, machine: Machine) -> Result<()> {
-        self.machines.insert(machine.name.clone(), machine.clone());
+    fn get_process_lock(&self) -> Result<LockFile> {
+        let mut lock = LockFile::open(&self.process_lock_path())?;
+        lock.lock()?;
+        Ok(lock)
+    }
+
+    pub fn disk_in_use(&self, name: &str) -> Result<bool> {
+        if !self.disks.contains_key(name) {
+            return Err(Error::InvalidDisk { name: name.into() });
+        }
+
+        let mut lock = self.get_process_lock()?;
+
+        let in_use = PipedCommand::run(format!(
+            "ps aux | grep -v grep | grep {}",
+            self.disk_path(name).to_str().ok_or(Error::InvalidPath {
+                path: self.disk_path(name)
+            })?
+        ))
+        .is_ok();
+
+        lock.unlock()?;
+
+        Ok(in_use)
+    }
+
+    pub fn machine_in_use(&self, name: &str) -> Result<bool> {
+        if !self.machines.contains_key(name) {
+            return Err(Error::InvalidMachine { name: name.into() });
+        }
+
+        let mut lock = self.get_process_lock()?;
+
+        let in_use = PipedCommand::run(format!(
+            "ps aux | grep -v grep | grep {}",
+            self.machine_path(name).to_str().ok_or(Error::InvalidPath {
+                path: self.machine_path(name)
+            })?
+        ))
+        .is_ok();
+
+        lock.unlock()?;
+
+        Ok(in_use)
+    }
+
+    pub fn add_disk(&mut self, name: &str, size: usize) -> Result<()> {
+        if self.disks.contains_key(name) {
+            return Ok(());
+        }
+
+        self.disks.insert(
+            name.into(),
+            Disk {
+                name: name.into(),
+                size,
+            },
+        );
 
         self.allocate_qcow2(
-            self.machine_path(&machine)?
-                .to_str()
-                .ok_or(Error::BadPath)?,
-            machine.size,
+            self.disk_path(name).to_str().ok_or(Error::InvalidPath {
+                path: self.disk_path(name),
+            })?,
+            size,
         )
     }
 
@@ -221,24 +229,34 @@ impl Library {
             .ok_or(Error::InvalidDisk { name: name.into() })
     }
 
-    fn lock_disk(&self, disk: &Disk) -> Result<LockFile> {
-        let mut lock = LockFile::open(&self.disk_lock_path(disk)?)?;
-        if lock.try_lock()? {
-            Ok(lock)
-        } else {
-            Err(Error::InUse {
-                name: disk.name.clone(),
-            })
+    pub fn remove_disk(&mut self, name: &str) -> Result<()> {
+        if self.disk_in_use(name)? {
+            return Err(Error::DiskInUse { name: name.into() });
         }
+        self.disks.remove(name);
+        Ok(())
     }
 
-    pub fn remove_disk(&mut self, name: &str) -> Result<()> {
-        let disk = self.get_disk(name)?.clone();
-        let mut lock = self.lock_disk(&disk)?;
-        self.disks.remove(&disk.name);
-        fs::remove_file(self.disk_lock_path(&disk)?)?;
-        lock.unlock()?;
-        Ok(())
+    pub fn add_machine(&mut self, name: &str, port: u16, size: usize) -> Result<()> {
+        if self.machines.contains_key(name) {
+            return Ok(());
+        }
+
+        self.machines.insert(
+            name.into(),
+            Machine {
+                name: name.into(),
+                port,
+                size,
+            },
+        );
+
+        self.allocate_qcow2(
+            self.machine_path(name).to_str().ok_or(Error::InvalidPath {
+                path: self.machine_path(name),
+            })?,
+            size,
+        )
     }
 
     pub fn get_machine(&self, name: &str) -> Result<&Machine> {
@@ -247,63 +265,64 @@ impl Library {
             .ok_or(Error::InvalidMachine { name: name.into() })
     }
 
-    fn lock_machine(&self, machine: &Machine) -> Result<LockFile> {
-        let mut lock = LockFile::open(&self.machine_lock_path(machine)?)?;
-        if lock.try_lock()? {
-            Ok(lock)
-        } else {
-            Err(Error::InUse {
-                name: machine.name.clone(),
-            })
-        }
-    }
-
     pub fn remove_machine(&mut self, name: &str) -> Result<()> {
-        let machine = self.get_machine(name)?.clone();
-        let mut lock = self.lock_machine(&machine)?;
-        self.machines.remove(&machine.name);
-        fs::remove_file(self.machine_lock_path(&machine)?)?;
-        lock.unlock()?;
+        if self.machine_in_use(name)? {
+            return Err(Error::MachineInUse { name: name.into() });
+        }
+        self.machines.remove(name);
         Ok(())
     }
 
-    pub fn run_machine(
+    pub fn get_machine_port(&self, name: &str) -> Result<u16> {
+        self.get_machine(name).map(|machine| machine.port)
+    }
+
+    pub fn disks(&self) -> Values<String, Disk> {
+        self.disks.values()
+    }
+
+    pub fn machines(&self) -> Values<String, Machine> {
+        self.machines.values()
+    }
+
+    pub fn ports(&self) -> impl Iterator<Item = u16> + '_ {
+        self.machines.values().map(|machine| machine.port)
+    }
+
+    pub fn start(
         &mut self,
-        name: String,
+        name: &str,
         cores: usize,
         ram: usize,
         foreground: bool,
         disks: &[String],
         iso: Option<PathBuf>,
     ) -> Result<()> {
-        let machine = self.get_machine(&name)?;
-
-        let mut machine_lock = self.lock_machine(machine)?;
-        let mut disk_locks = Vec::new();
-
+        let machine = self.get_machine(name)?;
         let mut cmd = self.base_qemu_command(machine, cores, ram)?;
 
         for disk in disks {
-            let disk = self
-                .disks
-                .get(disk)
-                .ok_or(Error::InvalidDisk { name: disk.clone() })?;
-            let disk_path = self.disk_path(&disk)?;
+            if self.disk_in_use(disk)? {
+                return Err(Error::DiskInUse { name: disk.into() });
+            }
 
             cmd.args([
                 "-drive",
                 &format!(
                     "file={},format=qcow2,media=disk",
-                    disk_path.to_str().ok_or(Error::BadPath)?
+                    self.disk_path(disk).to_str().ok_or(Error::InvalidPath {
+                        path: self.disk_path(disk)
+                    })?
                 ),
             ]);
-
-            let disk_lock = self.lock_disk(disk)?;
-            disk_locks.push(disk_lock);
         }
 
         if let Some(iso) = iso {
-            cmd.args(["-cdrom", iso.to_str().ok_or(Error::BadPath)?]);
+            cmd.args([
+                "-cdrom",
+                iso.to_str()
+                    .ok_or(Error::InvalidPath { path: iso.clone() })?,
+            ]);
         }
 
         if !foreground {
@@ -316,63 +335,37 @@ impl Library {
             child.wait()?;
         }
 
-        machine_lock.unlock()?;
+        Ok(())
+    }
 
-        for mut disk_lock in disk_locks.drain(..) {
-            disk_lock.unlock()?;
+    pub fn stop(&self, name: &str) -> Result<()> {
+        if !self.machine_in_use(name)? {
+            return Err(Error::MachineNotInUse { name: name.into() });
         }
 
+        let output = PipedCommand::run(format!(
+            "ps aux | grep -v grep | grep {}",
+            self.machine_path(name).to_str().ok_or(Error::InvalidPath {
+                path: self.machine_path(name)
+            })?
+        ))?;
+
+        let pid = str::from_utf8(&output.stdout)
+            .map_err(|_| Error::MachineNotInUse { name: name.into() })?
+            .lines()
+            .next()
+            .ok_or(Error::MachineNotInUse { name: name.into() })?
+            .split_whitespace()
+            .skip(1)
+            .next()
+            .unwrap();
+
+        Command::new("kill").arg(&pid).spawn()?.wait()?;
+
         Ok(())
     }
 
-    pub fn get_machine_port(&self, name: String) -> Result<u16> {
-        self.get_machine(&name).map(|machine| machine.port)
-    }
-
-    pub fn disks(&self) -> Values<String, Disk> {
-        self.disks.values()
-    }
-
-    pub fn machines(&self) -> Values<String, Machine> {
-        self.machines.values()
-    }
-
-    pub fn disk_backups(&self) -> Values<String, Disk> {
-        self.disk_backups.values()
-    }
-
-    pub fn machine_backups(&self) -> Values<String, Machine> {
-        self.machine_backups.values()
-    }
-
-    pub fn backup_disk(&mut self, name: String) -> Result<()> {
-        let disk = self.get_disk(&name)?;
-        let disk_path = self.disk_path(&disk)?;
-        let backup_path = self.disk_backup_path(&disk)?;
-        fs::copy(disk_path, backup_path)?;
-        self.disk_backups.insert(name, disk.clone());
-        Ok(())
-    }
-
-    pub fn backup_machine(&mut self, name: String) -> Result<()> {
-        let machine = self.get_machine(&name)?;
-        let machine_path = self.machine_path(&machine)?;
-        let backup_path = self.machine_backup_path(&machine)?;
-        fs::copy(machine_path, backup_path)?;
-        self.machine_backups.insert(name, machine.clone());
-        Ok(())
-    }
-
-    pub fn ports(&self) -> impl Iterator<Item = u16> + '_ {
-        self.machines.values().map(|machine| machine.port)
-    }
-
-    pub fn connect(
-        &self,
-        name: String,
-        username: Option<String>,
-        forward_keys: bool,
-    ) -> Result<()> {
+    pub fn connect(&self, name: &str, username: Option<String>, forward_keys: bool) -> Result<()> {
         let mut cmd = Command::new("ssh");
 
         if forward_keys {
@@ -392,26 +385,6 @@ impl Library {
 
         cmd.spawn()?.wait()?;
 
-        Ok(())
-    }
-
-    pub fn stop(&self, name: String) -> Result<()> {
-        let machine = self.get_machine(&name)?;
-        let path = self.machine_path(&machine)?;
-        let output = PipedCommand::run(format!(
-            "ps aux | grep -v grep | grep {}",
-            path.to_str().ok_or(Error::BadPath)?
-        ))?;
-        let pid = str::from_utf8(&output.stdout)
-            .map_err(|_| Error::NotInUse { name: name.clone() })?
-            .lines()
-            .next()
-            .ok_or(Error::NotInUse { name })?
-            .split_whitespace()
-            .skip(1)
-            .next()
-            .unwrap();
-        Command::new("kill").arg(&pid).spawn()?.wait()?;
         Ok(())
     }
 }

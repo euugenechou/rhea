@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use path_macro::path;
-use rhea::{Disk, Library, Machine};
+use rhea::Library;
 use std::{env, path::PathBuf};
 
 #[derive(Parser)]
@@ -24,19 +24,13 @@ enum Subcommands {
         size: usize,
     },
     /// Remove a disk
-    RmDisk {
-        /// Name of the disk
-        #[arg(value_parser)]
-        name: String,
-    },
-    /// Back up a disk
-    BackupDisk {
+    RemoveDisk {
         /// Name of the disk
         #[arg(value_parser)]
         name: String,
     },
     /// Add a new virtual machine
-    AddVm {
+    AddMachine {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
@@ -62,19 +56,25 @@ enum Subcommands {
         port: u16,
     },
     /// Remove a virtual machine
-    RmVm {
+    RemoveMachine {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
     },
-    /// Back up a virtual machine
-    BackupVm {
+    /// Print the port assigned to a virtual machine
+    Port {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
     },
+    /// List disks
+    Disks,
+    /// List virtual machines
+    Vms,
+    /// List ports used by virtual machines
+    Ports,
     /// Run a virtual machine
-    RunVm {
+    Start {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
@@ -95,22 +95,12 @@ enum Subcommands {
         #[arg(short, long, value_delimiter = ',')]
         disks: Vec<String>,
     },
-    /// Print the port assigned to a virtual machine
-    Port {
+    /// Stop a running virtual machine
+    Stop {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
     },
-    /// List disks
-    Disks,
-    /// List virtual machines
-    Vms,
-    /// List disk backups
-    DiskBackups,
-    /// List virtual machine backups
-    VmBackups,
-    /// List ports used by virtual machines
-    Ports,
     /// Connect to a running virtual machine
     Connect {
         /// Forward SSH keys
@@ -125,12 +115,6 @@ enum Subcommands {
         #[arg(value_parser)]
         name: String,
     },
-    /// Stop a running virtual machine
-    Stop {
-        /// Name of the virtual machine
-        #[arg(value_parser)]
-        name: String,
-    },
 }
 
 fn main() -> Result<()> {
@@ -141,18 +125,14 @@ fn main() -> Result<()> {
 
     match args.subcommand {
         Subcommands::AddDisk { name, size } => {
-            state.add_disk(Disk { name, size })?;
+            state.add_disk(&name, size)?;
             state.save()?;
         }
-        Subcommands::RmDisk { name } => {
+        Subcommands::RemoveDisk { name } => {
             state.remove_disk(&name)?;
             state.save()?;
         }
-        Subcommands::BackupDisk { name } => {
-            state.backup_disk(name)?;
-            state.save()?;
-        }
-        Subcommands::AddVm {
+        Subcommands::AddMachine {
             name,
             iso,
             size,
@@ -160,33 +140,16 @@ fn main() -> Result<()> {
             ram,
             port,
         } => {
-            state.add_machine(Machine {
-                name: name.clone(),
-                port,
-                size,
-            })?;
+            state.add_machine(&name, port, size)?;
             state.save()?;
-            state.run_machine(name, cores, ram, false, &[], Some(iso))?;
+            state.start(&name, cores, ram, false, &[], Some(iso))?;
         }
-        Subcommands::RmVm { name } => {
+        Subcommands::RemoveMachine { name } => {
             state.remove_machine(&name)?;
             state.save()?;
         }
-        Subcommands::BackupVm { name } => {
-            state.backup_machine(name)?;
-            state.save()?;
-        }
-        Subcommands::RunVm {
-            name,
-            cores,
-            ram,
-            foreground,
-            disks,
-        } => {
-            state.run_machine(name, cores, ram, foreground, &disks, None)?;
-        }
         Subcommands::Port { name } => {
-            println!("{}", state.get_machine_port(name)?);
+            println!("{}", state.get_machine_port(&name)?);
         }
         Subcommands::Disks => {
             for disk in state.disks() {
@@ -198,30 +161,29 @@ fn main() -> Result<()> {
                 println!("{}", machine.name);
             }
         }
-        Subcommands::DiskBackups => {
-            for backup in state.disk_backups() {
-                println!("{}", backup.name);
-            }
-        }
-        Subcommands::VmBackups => {
-            for backup in state.machine_backups() {
-                println!("{}", backup.name);
-            }
-        }
         Subcommands::Ports => {
             for port in state.ports() {
                 println!("{port}");
             }
+        }
+        Subcommands::Start {
+            name,
+            cores,
+            ram,
+            foreground,
+            disks,
+        } => {
+            state.start(&name, cores, ram, foreground, &disks, None)?;
+        }
+        Subcommands::Stop { name } => {
+            state.stop(&name)?;
         }
         Subcommands::Connect {
             forward_keys,
             username,
             name,
         } => {
-            state.connect(name, username, forward_keys)?;
-        }
-        Subcommands::Stop { name } => {
-            state.stop(name)?;
+            state.connect(&name, username, forward_keys)?;
         }
     };
 
