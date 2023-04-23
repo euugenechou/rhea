@@ -4,7 +4,7 @@ use path_macro::path;
 use piper::PipedCommand;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::Values, HashMap},
+    collections::{btree_map::Values, BTreeMap},
     env,
     fmt::Display,
     fs,
@@ -36,10 +36,8 @@ const MACHINE_DIR_PATH: &str = "machines";
 pub struct Library {
     #[serde(skip)]
     path: PathBuf,
-    disks: HashMap<String, Disk>,
-    disk_backups: HashMap<String, Disk>,
-    machines: HashMap<String, Machine>,
-    machine_backups: HashMap<String, Machine>,
+    disks: BTreeMap<String, Disk>,
+    machines: BTreeMap<String, Machine>,
 }
 
 impl Library {
@@ -84,10 +82,8 @@ impl Library {
     {
         let state = Self {
             path: path.into(),
-            disks: HashMap::new(),
-            disk_backups: HashMap::new(),
-            machines: HashMap::new(),
-            machine_backups: HashMap::new(),
+            disks: BTreeMap::new(),
+            machines: BTreeMap::new(),
         };
         state.setup()?;
         Ok(state)
@@ -174,8 +170,10 @@ impl Library {
             self.disk_path(name).to_str().ok_or(Error::InvalidPath {
                 path: self.disk_path(name)
             })?
-        ))
-        .is_ok();
+        ))?
+        .status
+        .code()
+            == Some(0);
 
         lock.unlock()?;
 
@@ -194,8 +192,10 @@ impl Library {
             self.machine_path(name).to_str().ok_or(Error::InvalidPath {
                 path: self.machine_path(name)
             })?
-        ))
-        .is_ok();
+        ))?
+        .status
+        .code()
+            == Some(0);
 
         lock.unlock()?;
 
