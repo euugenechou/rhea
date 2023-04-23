@@ -273,20 +273,12 @@ impl Library {
         Ok(())
     }
 
-    pub fn get_machine_port(&self, name: &str) -> Result<u16> {
-        self.get_machine(name).map(|machine| machine.port)
-    }
-
     pub fn disks(&self) -> Values<String, Disk> {
         self.disks.values()
     }
 
     pub fn machines(&self) -> Values<String, Machine> {
         self.machines.values()
-    }
-
-    pub fn ports(&self) -> impl Iterator<Item = u16> + '_ {
-        self.machines.values().map(|machine| machine.port)
     }
 
     pub fn start(
@@ -367,23 +359,23 @@ impl Library {
 
     pub fn connect(&self, name: &str, username: Option<String>, forward_keys: bool) -> Result<()> {
         let mut cmd = Command::new("ssh");
+        let machine = self.get_machine(name)?;
 
         if forward_keys {
             cmd.arg("-A");
         }
 
-        cmd.arg(&format!("-p {}", self.get_machine_port(name)?));
-
-        cmd.arg(&format!(
-            "{}@localhost",
-            if let Some(username) = username {
-                username
-            } else {
-                env::var("USER")?
-            }
-        ));
-
-        cmd.spawn()?.wait()?;
+        cmd.arg(&format!("-p {}", machine.port))
+            .arg(&format!(
+                "{}@localhost",
+                if let Some(username) = username {
+                    username
+                } else {
+                    env::var("USER")?
+                }
+            ))
+            .spawn()?
+            .wait()?;
 
         Ok(())
     }

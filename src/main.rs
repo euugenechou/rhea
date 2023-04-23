@@ -61,18 +61,20 @@ enum Subcommands {
         #[arg(value_parser)]
         name: String,
     },
-    /// Print the port assigned to a virtual machine
-    Port {
-        /// Name of the virtual machine
+    /// Print information about a disk
+    Disk {
         #[arg(value_parser)]
         name: String,
     },
-    /// List disks
+    /// Print information about all disks
     Disks,
-    /// List virtual machines
-    Vms,
-    /// List ports used by virtual machines
-    Ports,
+    /// Print information about a virtual machine
+    Machine {
+        #[arg(value_parser)]
+        name: String,
+    },
+    /// Print information about all virtual machines
+    Machines,
     /// Run a virtual machine
     Start {
         /// Name of the virtual machine
@@ -95,15 +97,15 @@ enum Subcommands {
         #[arg(short, long, value_delimiter = ',')]
         disks: Vec<String>,
     },
-    /// Stop a running virtual machine
+    /// Stop a virtual machine
     Stop {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
     },
-    /// Connect to a running virtual machine
+    /// Connect to a virtual machine
     Connect {
-        /// Forward SSH keys
+        /// Enable SSH agent forwarding
         #[arg(short = 'A', long, default_value_t = false)]
         forward_keys: bool,
 
@@ -148,22 +150,28 @@ fn main() -> Result<()> {
             state.remove_machine(&name)?;
             state.save()?;
         }
-        Subcommands::Port { name } => {
-            println!("{}", state.get_machine_port(&name)?);
+        Subcommands::Disk { name } => {
+            println!("{}", state.get_disk(&name)?);
         }
         Subcommands::Disks => {
             for disk in state.disks() {
-                println!("{}", disk.name);
+                if state.disk_in_use(&disk.name)? {
+                    println!("{disk} [in-use]");
+                } else {
+                    println!("{disk}");
+                }
             }
         }
-        Subcommands::Vms => {
+        Subcommands::Machine { name } => {
+            println!("{}", state.get_machine(&name)?);
+        }
+        Subcommands::Machines => {
             for machine in state.machines() {
-                println!("{}", machine.name);
-            }
-        }
-        Subcommands::Ports => {
-            for port in state.ports() {
-                println!("{port}");
+                if state.machine_in_use(&machine.name)? {
+                    println!("{machine} [in-use]");
+                } else {
+                    println!("{machine}");
+                }
             }
         }
         Subcommands::Start {
