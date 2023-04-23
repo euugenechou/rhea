@@ -11,5 +11,6 @@ fslock = "0.2.1"
 path_macro = "1.0.0"
 piper = { git = "https://github.com/euugenechou/piper" }
 serde = { version = "1.0.152", features = ["derive"] }
+tabled = "0.11.1"
 thiserror = "1.0.38"
 toml = "0.5.11"

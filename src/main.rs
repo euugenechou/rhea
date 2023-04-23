@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use path_macro::path;
 use rhea::Library;
 use std::{env, path::PathBuf};
+use tabled::{settings::Style, Table, Tabled};
 
 #[derive(Parser)]
 #[command(author, version)]
@@ -119,6 +120,28 @@ enum Subcommands {
     },
 }
 
+#[derive(Tabled)]
+struct DiskInfo {
+    #[tabled(rename = "NAME")]
+    name: String,
+    #[tabled(rename = "SIZE (GB)")]
+    size: usize,
+    #[tabled(rename = "IN-USE")]
+    in_use: bool,
+}
+
+#[derive(Tabled)]
+struct MachineInfo {
+    #[tabled(rename = "NAME")]
+    name: String,
+    #[tabled(rename = "PORT")]
+    port: u16,
+    #[tabled(rename = "SIZE (GB)")]
+    size: usize,
+    #[tabled(rename = "IN-USE")]
+    in_use: bool,
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -151,28 +174,76 @@ fn main() -> Result<()> {
             state.save()?;
         }
         Subcommands::Disk { name } => {
-            println!("{}", state.get_disk(&name)?);
+            println!(
+                "{}",
+                Table::new(
+                    state
+                        .disks()
+                        .filter(|disk| disk.name == name)
+                        .map(|disk| DiskInfo {
+                            name: disk.name.clone(),
+                            size: disk.size,
+                            in_use: state.disk_in_use(&disk.name).unwrap(),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .with(Style::blank())
+                .to_string()
+            );
         }
         Subcommands::Disks => {
-            for disk in state.disks() {
-                if state.disk_in_use(&disk.name)? {
-                    println!("{disk} [in-use]");
-                } else {
-                    println!("{disk}");
-                }
-            }
+            println!(
+                "{}",
+                Table::new(
+                    state
+                        .disks()
+                        .map(|disk| DiskInfo {
+                            name: disk.name.clone(),
+                            size: disk.size,
+                            in_use: state.disk_in_use(&disk.name).unwrap(),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .with(Style::blank())
+                .to_string()
+            );
         }
         Subcommands::Machine { name } => {
-            println!("{}", state.get_machine(&name)?);
+            println!(
+                "{}",
+                Table::new(
+                    state
+                        .machines()
+                        .filter(|machine| machine.name == name)
+                        .map(|machine| MachineInfo {
+                            name: machine.name.clone(),
+                            port: machine.port,
+                            size: machine.size,
+                            in_use: state.machine_in_use(&machine.name).unwrap(),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .with(Style::blank())
+                .to_string()
+            );
         }
         Subcommands::Machines => {
-            for machine in state.machines() {
-                if state.machine_in_use(&machine.name)? {
-                    println!("{machine} [in-use]");
-                } else {
-                    println!("{machine}");
-                }
-            }
+            println!(
+                "{}",
+                Table::new(
+                    state
+                        .machines()
+                        .map(|machine| MachineInfo {
+                            name: machine.name.clone(),
+                            port: machine.port,
+                            size: machine.size,
+                            in_use: state.machine_in_use(&machine.name).unwrap(),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .with(Style::blank())
+                .to_string()
+            );
         }
         Subcommands::Start {
             name,
