@@ -33,14 +33,14 @@ const DISK_DIR_PATH: &str = "disks";
 const MACHINE_DIR_PATH: &str = "machines";
 
 #[derive(Deserialize, Serialize)]
-pub struct Library {
+pub struct State {
     #[serde(skip)]
     path: PathBuf,
     disks: BTreeMap<String, Disk>,
     machines: BTreeMap<String, Machine>,
 }
 
-impl Library {
+impl State {
     fn uefi_path(&self) -> Result<PathBuf> {
         Ok(PathBuf::from(env::var(UEFI_ENV_VAR)?))
     }
@@ -93,7 +93,7 @@ impl Library {
     where
         P: AsRef<Path> + Into<PathBuf> + Clone,
     {
-        let mut state = Library::new(path.clone())?;
+        let mut state = State::new(path.clone())?;
         if fs::metadata(&state.state_path()).is_ok() {
             state = toml::from_str(&fs::read_to_string(state.state_path())?)?;
             state.path = path.into();
