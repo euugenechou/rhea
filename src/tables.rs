@@ -1,4 +1,4 @@
-use rhea::State;
+use rhea::state::State;
 use std::fmt;
 use tabled::{settings::Style, Table, Tabled};
 
@@ -84,6 +84,54 @@ impl MachineTable {
 }
 
 impl fmt::Display for MachineTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.table)
+    }
+}
+
+#[derive(Tabled)]
+pub struct SnapshotInfo {
+    #[tabled(rename = "NAME")]
+    name: String,
+    #[tabled(rename = "BASE")]
+    base: String,
+    #[tabled(rename = "PORT")]
+    port: u16,
+    #[tabled(rename = "SIZE (GB)")]
+    size: usize,
+    #[tabled(rename = "IN-USE")]
+    in_use: bool,
+}
+
+pub struct SnapshotTable {
+    table: Table,
+}
+
+impl SnapshotTable {
+    pub fn new(state: &State) -> Self {
+        Self::filtered(state, &[])
+    }
+
+    pub fn filtered(state: &State, filter: &[&str]) -> Self {
+        let mut table = Table::new(
+            state
+                .snapshots()
+                .filter(|snapshot| filter.is_empty() || filter.contains(&snapshot.name.as_ref()))
+                .map(|snapshot| SnapshotInfo {
+                    name: snapshot.name.clone(),
+                    base: snapshot.base.clone(),
+                    port: snapshot.port,
+                    size: snapshot.size,
+                    in_use: state.snapshot_in_use(&snapshot.name).unwrap(),
+                })
+                .collect::<Vec<_>>(),
+        );
+        table.with(Style::blank());
+        Self { table }
+    }
+}
+
+impl fmt::Display for SnapshotTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.table)
     }

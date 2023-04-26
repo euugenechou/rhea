@@ -26,7 +26,7 @@ pub enum Subcommands {
         #[arg(value_parser)]
         name: String,
     },
-    /// Add a new virtual machine
+    /// Add a virtual machine
     AddMachine {
         /// Name of the virtual machine
         #[arg(value_parser)]
@@ -40,11 +40,11 @@ pub enum Subcommands {
         #[arg(short, long, value_parser, default_value_t = 128)]
         size: usize,
 
-        /// Cores to allocate for the virtual machine
+        /// Number of allocated cores
         #[arg(short, long, value_parser, default_value_t = 4)]
         cores: usize,
 
-        /// RAM to allocate for the virtual machine (GB)
+        /// Amount of allocated RAM (GB)
         #[arg(short, long, value_parser, default_value_t = 4)]
         ram: usize,
 
@@ -58,8 +58,25 @@ pub enum Subcommands {
         #[arg(value_parser)]
         name: String,
     },
+    /// Add a snapshot of a virtual machine
+    AddSnapshot {
+        /// Name of the snapshot
+        #[arg(value_parser)]
+        name: String,
+
+        /// Name of the base virtual machine
+        #[arg(value_parser)]
+        base: String,
+    },
+    /// Remove a snapshot
+    RemoveSnapShot {
+        /// Name of the snapshot
+        #[arg(value_parser)]
+        name: String,
+    },
     /// Print information about a disk
     Disk {
+        /// Name of the disk
         #[arg(value_parser)]
         name: String,
     },
@@ -67,11 +84,20 @@ pub enum Subcommands {
     Disks,
     /// Print information about a virtual machine
     Machine {
+        /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
     },
     /// Print information about all virtual machines
     Machines,
+    /// Print information about a snapshot
+    Snapshot {
+        /// Name of the snapshot
+        #[arg(value_parser)]
+        name: String,
+    },
+    /// Print information about all snapshots
+    Snapshots,
     /// Run a virtual machine
     Start {
         /// Name of the virtual machine
@@ -93,12 +119,20 @@ pub enum Subcommands {
         /// Names of disks to attach to the virtual machine
         #[arg(short, long, value_delimiter = ',')]
         disks: Vec<String>,
+
+        /// Start a snapshot instead of a virtual machine
+        #[arg(short, long, default_value_t = false)]
+        snapshot: bool,
     },
     /// Stop a virtual machine
     Stop {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
+
+        /// Stop a snapshot instead of a virtual machine
+        #[arg(short, long, default_value_t = false)]
+        snapshot: bool,
     },
     /// Connect to a virtual machine
     Connect {
@@ -113,5 +147,9 @@ pub enum Subcommands {
         /// Name of the virtual machine
         #[arg(value_parser)]
         name: String,
+
+        /// Connect to a snapshot instead of a virtual machine
+        #[arg(short, long, default_value_t = false)]
+        snapshot: bool,
     },
 }

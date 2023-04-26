@@ -10,14 +10,20 @@ pub enum Error {
     #[error("invalid path: {path:?}")]
     InvalidPath { path: PathBuf },
 
-    #[error("invalid disk: {name}")]
-    InvalidDisk { name: String },
+    #[error("disk exists")]
+    DiskExists { name: String },
 
     #[error("disk in use: {name}")]
     DiskInUse { name: String },
 
     #[error("disk not in use: {name}")]
     DiskNotInUse { name: String },
+
+    #[error("invalid disk: {name}")]
+    InvalidDisk { name: String },
+
+    #[error("machine exists: {name}")]
+    MachineExists { name: String },
 
     #[error("machine in use: {name}")]
     MachineInUse { name: String },
@@ -27,6 +33,18 @@ pub enum Error {
 
     #[error("invalid machine: {name}")]
     InvalidMachine { name: String },
+
+    #[error("snapshot exists: {name}")]
+    SnapshotExists { name: String },
+
+    #[error("snapshot in use: {name}")]
+    SnapshotInUse { name: String },
+
+    #[error("snapshot not in use: {name}")]
+    SnapshotNotInUse { name: String },
+
+    #[error("invalid snapshot: {name}")]
+    InvalidSnapshot { name: String },
 
     #[error("missing environment variable")]
     MissingEnvVar(#[from] env::VarError),
