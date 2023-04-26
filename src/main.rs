@@ -45,7 +45,7 @@ fn main() -> Result<()> {
             state.add_snapshot(&name, &base)?;
             state.save()?;
         }
-        Subcommands::RemoveSnapShot { name } => {
+        Subcommands::RemoveSnapshot { name } => {
             state.remove_snapshot(&name)?;
             state.save()?;
         }

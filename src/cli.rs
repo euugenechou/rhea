@@ -69,7 +69,7 @@ pub enum Subcommands {
         base: String,
     },
     /// Remove a snapshot
-    RemoveSnapShot {
+    RemoveSnapshot {
         /// Name of the snapshot
         #[arg(value_parser)]
         name: String,
