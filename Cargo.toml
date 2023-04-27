@@ -2,6 +2,11 @@
 name = "rhea"
 version = "2.0.1"
 edition = "2021"
+license = "MIT"
+authors = ["Eugene Chou <euchou@ucsc.edu>"]
+description = "A QEMU-based virtual machine manager."
+repository = "https://github.com/euugenechou/rhea"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.68"
