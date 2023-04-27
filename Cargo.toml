@@ -14,7 +14,7 @@ array-init = "2.1.0"
 clap = { version = "4.1.3", features = ["derive"] }
 fslock = "0.2.1"
 path_macro = "1.0.0"
-piper = { git = "https://github.com/euugenechou/piper" }
+piper = { version = "0.1.0", git = "https://github.com/euugenechou/piper" }
 serde = { version = "1.0.152", features = ["derive"] }
 tabled = "0.11.1"
 thiserror = "1.0.38"
