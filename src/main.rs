@@ -35,7 +35,7 @@ fn main() -> Result<()> {
         } => {
             state.add_machine(&name, port, size)?;
             state.save()?;
-            state.start(&name, cores, ram, false, false, &[], Some(iso))?;
+            state.start(&name, cores, ram, true, false, &[], Some(iso))?;
         }
         Subcommands::RemoveMachine { name } => {
             state.remove_machine(&name)?;
