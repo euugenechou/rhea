@@ -13,7 +13,7 @@ use std::{
     str,
 };
 
-#[cfg(target_arch = "x86-64")]
+#[cfg(target_arch = "x86_64")]
 const QEMU_RUNNER: &str = "qemu-system-x86_64";
 #[cfg(target_arch = "mips")]
 const QEMU_RUNNER: &str = "qemu-system-mips";
